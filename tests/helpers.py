@@ -1,5 +1,6 @@
 import json
 import shutil
+import struct
 import subprocess
 
 import pytest
@@ -21,6 +22,32 @@ def nal_types(frame: bytes) -> list[int]:
         out.append(frame[k + 3] & 0x1F)
         i = k + 3
     return out
+
+
+def obu_types(tu: bytes) -> list[int]:
+    """The OBU types of an AV1 temporal unit in low-overhead form."""
+    out, i = [], 0
+    while i < len(tu):
+        h = tu[i]
+        i += 1 + ((h >> 2) & 1)
+        size = 0
+        for shift in range(0, 64, 7):
+            c = tu[i]
+            i += 1
+            size |= (c & 0x7F) << shift
+            if not c & 0x80:
+                break
+        out.append((h >> 3) & 15)
+        i += size
+    return out
+
+
+def write_ivf(path, frames: list[bytes], width: int, height: int, fps: int) -> None:
+    """AV1 temporal units in an IVF file, for ffprobe."""
+    head = b"DKIF" + struct.pack("<HH4sHHIIII", 0, 32, b"AV01", width, height, fps, 1,
+                                 len(frames), 0)
+    body = b"".join(struct.pack("<IQ", len(f), n) + f for n, f in enumerate(frames))
+    path.write_bytes(head + body)
 
 
 def make_source(tmp_path, width=640, height=360, frames=90, gop=30, rate=30) -> list[bytes]:

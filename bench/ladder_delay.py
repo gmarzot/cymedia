@@ -4,7 +4,8 @@ Each frame's delay runs from push to the branch's output, so it covers decode, f
 and encode. Run past 60 s: a GPU under light load can settle into a low-power state
 after the first seconds and lose throughput.
 
-    python bench/ladder_delay.py CLIP [--profile nvenc] [--seconds 90] [--rate 1.0] [--rungs 6]
+    python bench/ladder_delay.py CLIP [--profile nvenc] [--codec h264] [--seconds 90] [--rate 1.0]
+                                      [--rungs 6]
 """
 import argparse
 import shutil
@@ -62,6 +63,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("clip")
     ap.add_argument("--profile", default="nvenc", choices=sorted(cymedia.PROFILES))
+    ap.add_argument("--codec", default="h264", choices=cymedia.CODECS)
     ap.add_argument("--seconds", type=float, default=90)
     ap.add_argument("--fps", type=int, default=60)
     ap.add_argument("--rate", type=float, default=1.0, help="push rate as a fraction of --fps")
@@ -74,7 +76,8 @@ def main() -> int:
     if not idr[0]:
         print("the clip must start with an IDR", file=sys.stderr)
         return 2
-    graph = ladder(LADDER[:args.rungs], profile=args.profile, fps=(args.fps, 1), realtime=True)
+    graph = ladder(LADDER[:args.rungs], profile=args.profile, codec=args.codec, fps=(args.fps, 1),
+                   realtime=True)
     counts = [dict(out=0, key_at_start=0, key_elsewhere=0, start_without_key=0)
               for _ in range(args.rungs)]
     stop = threading.Event()
@@ -116,7 +119,8 @@ def main() -> int:
     for t in readers:
         t.join()
     st = graph.stats()
-    print(f"{args.profile}: {frames} frames at {args.fps * args.rate:g} fps, {args.seconds:g} s, "
+    print(f"{args.profile} {args.codec}: {frames} frames at {args.fps * args.rate:g} fps, "
+          f"{args.seconds:g} s, "
           f"input dropped {st['packets_dropped']}, decode errors {st['decode_errors']}, "
           f"pushes late by over a frame {late}")
     print(f"{'rung':>10} {'out':>6} {'drop':>5} {'aband':>5} {'p50 ms':>7} {'p99 ms':>7} "

@@ -1,5 +1,5 @@
 import pytest
-from helpers import make_source, nal_types, probe_frames, run_graph
+from helpers import make_source, nal_types, obu_types, probe_frames, run_graph, write_ivf
 
 import cymedia
 from cymedia import Rung, ladder
@@ -28,3 +28,24 @@ def test_nvenc_ladder_keeps_ids_aligns_keyframes_and_strips_filler(tmp_path):
         frames = probe_frames(path)
         assert len(frames) == 120
         assert {(f["width"], f["height"]) for f in frames} == {sizes[b]}
+
+
+@pytest.mark.skipif(not cymedia.have_encoder("av1_nvenc"), reason="needs AV1 NVENC")
+def test_nvenc_av1_ladder_keeps_ids_aligns_keyframes_and_strips_padding(tmp_path):
+    aus = make_source(tmp_path, width=1280, height=720, frames=120, gop=60, rate=60)
+    sizes = [(640, 360), (320, 180)]
+    with ladder([Rung(640, 360, 900_000), Rung(320, 180, 300_000)], profile="nvenc",
+                codec="av1", fps=(60, 1), realtime=False) as g:
+        by = run_graph(g, aus, 60, fps=60)
+    assert sorted(by) == [0, 1]
+    for b, outs in by.items():
+        assert [(o.group, o.object) for o in outs] == [(i // 60, i % 60) for i in range(120)]
+        assert [o.key for o in outs] == [i % 60 == 0 for i in range(120)]
+        assert all(15 not in obu_types(o.data) for o in outs)
+        assert 1 in obu_types(outs[0].data)
+        path = tmp_path / f"branch{b}.ivf"
+        write_ivf(path, [o.data for o in outs], *sizes[b], 60)
+        frames = probe_frames(path)
+        assert len(frames) == 120
+        assert {(f["width"], f["height"]) for f in frames} == {sizes[b]}
+

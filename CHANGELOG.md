@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.0a2
+
+- AV1 ladders: `ladder(..., codec="av1")` encodes with `av1_nvenc`, or libaom in realtime mode
+  on the `cpu` profile, a keyframe at each group start; padding OBUs are stripped like H.264
+  filler. `CODECS` lists the codecs, and `PROFILES` makers take the codec.
+- An encoder that fails to open is retried only when the frame size or format changes, not on
+  every frame.
+
 ## 0.1.0a1
 
 First alpha.

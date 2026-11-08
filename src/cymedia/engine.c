@@ -67,6 +67,7 @@ typedef struct branch {
     AVCodecContext *enc;
     int enc_w, enc_h, enc_fmt;
     int opened; /* first open attempted; read by the decode thread */
+    int enc_failed; /* the last open failed for frames of enc_w x enc_h, enc_fmt */
     meta_list emeta;
 
     pthread_mutex_t st_mu;
@@ -299,14 +300,70 @@ static void strip_filler(AVPacket *p)
     }
 }
 
+/* The OBU at `at`: its end and type; -1 when it overruns the packet. */
+static int obu_span(const uint8_t *d, size_t n, size_t at, size_t *end, int *type)
+{
+    uint8_t h = d[at];
+    size_t k = at + 1 + ((h >> 2) & 1);
+    uint64_t size = 0;
+    if (k > n)
+        return -1;
+    if (h & 0x02) {
+        for (int i = 0;; i++) {
+            if (k >= n || i == 8)
+                return -1;
+            uint8_t c = d[k++];
+            size |= (uint64_t)(c & 0x7f) << (7 * i);
+            if (!(c & 0x80))
+                break;
+        }
+    } else {
+        size = n - k;
+    }
+    if (size > n - k)
+        return -1;
+    *end = k + (size_t)size;
+    *type = (h >> 3) & 15;
+    return 0;
+}
+
+/* Removes AV1 padding OBUs (type 15); a packet that does not parse is left as it is. */
+static void strip_av1_padding(AVPacket *p)
+{
+    size_t n = (size_t)p->size, at, end;
+    int type, found = 0;
+    for (at = 0; at < n; at = end) {
+        if (obu_span(p->data, n, at, &end, &type) < 0)
+            return;
+        found |= type == 15;
+    }
+    if (!found || av_packet_make_writable(p) < 0)
+        return;
+    uint8_t *d = p->data;
+    size_t w = 0;
+    for (at = 0; at < n; at = end) {
+        obu_span(d, n, at, &end, &type);
+        if (type != 15) {
+            memmove(d + w, d + at, end - at);
+            w += end - at;
+        }
+    }
+    p->size = (int)w;
+    memset(d + w, 0, AV_INPUT_BUFFER_PADDING_SIZE);
+}
+
 static void emit(cym_graph *g, branch *b, AVPacket *p)
 {
     meta_int m;
     meta_take(&b->emeta, p->pts, &m);
     m.pub.branch = (uint32_t)b->index;
     m.pub.flags = (m.pub.flags & CYMEDIA_GROUP_START) | ((p->flags & AV_PKT_FLAG_KEY) ? CYMEDIA_KEY : 0);
-    if (b->strip_filler)
-        strip_filler(p);
+    if (b->strip_filler) {
+        if (b->enc->codec_id == AV_CODEC_ID_AV1)
+            strip_av1_padding(p);
+        else
+            strip_filler(p);
+    }
     cymedia_buf *buf = malloc(sizeof *buf);
     if (!buf) {
         av_packet_free(&p);
@@ -403,10 +460,20 @@ static void encode(cym_graph *g, branch *b, AVFrame *f, const meta_int *m)
         close_encoder(g, b);
         return;
     }
-    if (!b->enc || f->width != b->enc_w || f->height != b->enc_h || f->format != b->enc_fmt) {
+    int same = f->width == b->enc_w && f->height == b->enc_h && f->format == b->enc_fmt;
+    if (!b->enc || !same) {
+        /* A failed open is retried only for frames of another size or format. */
+        if (!b->enc && same && b->enc_failed) {
+            BSTAT(b, errors, 1);
+            return;
+        }
         int r = open_encoder(g, b, f);
         __atomic_store_n(&b->opened, 1, __ATOMIC_RELEASE);
+        b->enc_failed = r < 0;
         if (r < 0) {
+            b->enc_w = f->width;
+            b->enc_h = f->height;
+            b->enc_fmt = f->format;
             BSTAT(b, errors, 1);
             return;
         }
