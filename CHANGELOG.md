@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.1.0a1
+
+First alpha.
 
 - Graph engine: decode once, a filter chain and an encoder per branch, source group and object
   numbers carried to every output, a keyframe at each group start.

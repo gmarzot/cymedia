@@ -13,6 +13,7 @@ Contributor guide for `cymedia`.
 | `src/cymedia/ladder.py` | ABR ladder profiles (`nvenc`, `cpu`) |
 | `tests/` | pytest; `test_graph_gpu.py` skips without CUDA |
 | `bench/ladder_delay.py` | live added-delay bench |
+| `.github/workflows/release.yml` | build, test and publish a release (see Release) |
 
 ## Rules
 
@@ -34,3 +35,16 @@ Contributor guide for `cymedia`.
 
 GPU work runs on a host with an NVIDIA GPU. GeForce cards cap NVENC at a fixed number of
 concurrent sessions; a six-rung ladder uses six.
+
+## Release
+
+The version is static in `pyproject.toml`, PEP 440: `0.1.0a1`, `0.1.0b1`, `0.1.0rc1`, `0.1.0`.
+
+1. Land the version and its `## <version>` CHANGELOG section on main.
+2. Dispatch `release.yml` on main with that version and `dry_run` on. It builds the sdist, checks
+   it, installs it in a clean venv and runs the tests against it on Linux and macOS.
+3. Dispatch again with `dry_run` off. It publishes to PyPI by trusted publishing (environment
+   `pypi`), then tags `v<version>` with a GitHub release, a prerelease for a, b and rc.
+
+A version cannot be uploaded twice: a broken release is fixed by the next version.
+
