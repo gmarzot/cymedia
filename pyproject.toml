@@ -4,13 +4,32 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cymedia"
-version = "0.1.0.dev0"
+version = "0.1.0a1"
 description = "Low-latency, group-aligned media processing graphs on FFmpeg's libraries"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Giovanni Marzot" }]
+keywords = ["ffmpeg", "video", "transcoding", "abr", "nvenc", "low-latency", "moq"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: C",
+    "Programming Language :: Cython",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Multimedia :: Video :: Conversion",
+]
+
+[project.urls]
+Homepage = "https://github.com/gmarzot/cymedia"
+Repository = "https://github.com/gmarzot/cymedia"
+Issues = "https://github.com/gmarzot/cymedia/issues"
+Changelog = "https://github.com/gmarzot/cymedia/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 test = ["pytest>=8"]
