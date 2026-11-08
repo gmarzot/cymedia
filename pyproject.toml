@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=77", "Cython>=3.0.10"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cymedia"
+version = "0.1.0.dev0"
+description = "Low-latency, group-aligned media processing graphs on FFmpeg's libraries"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Giovanni Marzot" }]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+packages = ["cymedia"]
+
+[tool.setuptools.package-data]
+cymedia = ["*.h"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
