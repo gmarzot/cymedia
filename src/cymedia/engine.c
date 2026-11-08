@@ -66,6 +66,7 @@ typedef struct branch {
     /* branch thread */
     AVCodecContext *enc;
     int enc_w, enc_h, enc_fmt;
+    int opened; /* first open attempted; read by the decode thread */
     meta_list emeta;
 
     pthread_mutex_t st_mu;
@@ -403,7 +404,9 @@ static void encode(cym_graph *g, branch *b, AVFrame *f, const meta_int *m)
         return;
     }
     if (!b->enc || f->width != b->enc_w || f->height != b->enc_h || f->format != b->enc_fmt) {
-        if (open_encoder(g, b, f) < 0) {
+        int r = open_encoder(g, b, f);
+        __atomic_store_n(&b->opened, 1, __ATOMIC_RELEASE);
+        if (r < 0) {
             BSTAT(b, errors, 1);
             return;
         }
@@ -499,7 +502,8 @@ static int build_filter(cym_graph *g, branch *b, const AVFrame *in)
     return 0;
 }
 
-/* A branch that cannot keep up drops the rest of the group and resumes at the next group start. */
+/* A branch that cannot keep up drops the rest of the group and resumes at the next group start.
+   Until its encoder first opens, the decode thread waits instead. */
 static void pull_filter(cym_graph *g, branch *b)
 {
     for (;;) {
@@ -521,7 +525,7 @@ static void pull_filter(cym_graph *g, branch *b)
             continue;
         }
         b->skipping = 0;
-        int r = q_push(&b->q, it, !g->realtime);
+        int r = q_push(&b->q, it, !g->realtime || !__atomic_load_n(&b->opened, __ATOMIC_ACQUIRE));
         if (r != 0) {
             free_item(it);
             if (r < 0)

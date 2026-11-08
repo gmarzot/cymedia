@@ -25,7 +25,8 @@ with ladder([Rung(1280, 720, 3_750_000), Rung(640, 360, 900_000)], profile="nven
 - Each branch encodes on its own thread. Python's GIL is released throughout.
 - In realtime mode a full queue drops instead of blocking. Input resumes at the next group start;
   a branch that falls behind abandons the rest of that group (`CYMEDIA_EV_GROUP_ABANDONED`), so a
-  group is cut short and never has a hole in it.
+  group is cut short and never has a hole in it. While a branch's encoder first opens, frames wait
+  rather than drop; the input queue takes up the slack.
 - Outputs go to a sink with a C ABI (`src/cymedia/cymedia_sink.h`). The default sink queues them
   for `Graph.read()`; a native consumer can pass its own sink as a `cymedia.sink` capsule and keep
   frames out of Python entirely.
