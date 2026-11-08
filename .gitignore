@@ -1,0 +1,7 @@
+__pycache__/
+*.so
+*.egg-info/
+build/
+src/cymedia/_core.c
+.venv/
+.pytest_cache/
