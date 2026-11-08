@@ -19,7 +19,8 @@ class Output(NamedTuple):
 
 @dataclass(frozen=True)
 class Branch:
-    """A libavfilter chain (empty passes frames through) and the encoder after it."""
+    """A libavfilter chain (empty passes frames through) and the encoder after it.
+    strip_filler drops H.264 filler NAL units and AV1 padding OBUs from the output."""
 
     filter: str
     encoder: str

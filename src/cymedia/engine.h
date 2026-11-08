@@ -10,7 +10,7 @@ typedef struct cym_branch_cfg {
     const char *filter;   /* libavfilter description, e.g. "scale_cuda=w=1280:h=720" */
     const char *encoder;  /* encoder name, e.g. "h264_nvenc" */
     const char *options;  /* encoder options, "key=value" pairs separated by '\n' */
-    int strip_filler;     /* drop H.264 filler-data NAL units from the output */
+    int strip_filler;     /* drop H.264 filler NAL units and AV1 padding OBUs */
 } cym_branch_cfg;
 
 typedef struct cym_graph_cfg {

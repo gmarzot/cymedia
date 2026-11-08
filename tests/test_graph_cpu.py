@@ -1,7 +1,7 @@
 import time
 
 import pytest
-from helpers import make_source, probe_frames, run_graph
+from helpers import make_source, obu_types, probe_frames, run_graph, write_ivf
 
 import cymedia
 from cymedia import Branch, Graph, Rung, ladder
@@ -101,3 +101,39 @@ def test_rejects_a_sink_that_is_not_a_capsule():
 def test_ffmpeg_info_reports_the_license():
     info = cymedia.ffmpeg_info()
     assert info["license"] and info["libavcodec"].count(".") == 2
+
+
+@pytest.mark.skipif(not cymedia.have_encoder("libaom-av1"), reason="needs libaom")
+def test_cpu_av1_ladder_keeps_ids_and_keys_at_group_starts(tmp_path):
+    aus = make_source(tmp_path, frames=60, gop=30)
+    sizes = [(320, 180), (160, 90)]
+    with ladder([Rung(320, 180, 300_000), Rung(160, 90, 100_000)], profile="cpu", codec="av1",
+                fps=(30, 1), realtime=False) as g:
+        by = run_graph(g, aus, 30)
+    assert sorted(by) == [0, 1]
+    for b, outs in by.items():
+        assert [(o.group, o.object) for o in outs] == [(i // 30, i % 30) for i in range(60)]
+        assert [o.key for o in outs] == [i % 30 == 0 for i in range(60)]
+        assert all(15 not in obu_types(o.data) for o in outs)
+        path = tmp_path / f"branch{b}.ivf"
+        write_ivf(path, [o.data for o in outs], *sizes[b], 30)
+        frames = probe_frames(path)
+        assert len(frames) == 60
+        assert {(f["width"], f["height"]) for f in frames} == {sizes[b]}
+
+
+def test_ladder_refuses_an_unknown_codec():
+    with pytest.raises(ValueError):
+        ladder([Rung(320, 180, 300_000)], profile="cpu", codec="vp9")
+
+
+@pytest.mark.skipif(not cymedia.have_encoder("libaom-av1"), reason="needs libaom")
+def test_an_encoder_that_will_not_open_counts_errors_without_output(tmp_path):
+    aus = make_source(tmp_path, frames=30, gop=15)
+    bad = Branch("scale=160:90,format=yuv420p", "libaom-av1", {"cpu-used": "99"})
+    with Graph([bad], realtime=False, fps=(30, 1)) as g:
+        by = run_graph(g, aus, 15)
+        stats = g.stats()["branches"][0]
+    assert by == {}
+    assert stats["errors"] == 30
+
