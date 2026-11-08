@@ -1,7 +1,8 @@
 """Added delay of a cymedia ladder fed in real time from a clip.
 
 Each frame's delay runs from push to the branch's output, so it covers decode, filter, queueing
-and encode. Run past 60 s: some GPUs only drop to a low-power state after that.
+and encode. Run past 60 s: a GPU under light load can settle into a low-power state
+after the first seconds and lose throughput.
 
     python bench/ladder_delay.py CLIP [--profile nvenc] [--seconds 90] [--rate 1.0] [--rungs 6]
 """

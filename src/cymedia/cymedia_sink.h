@@ -9,7 +9,7 @@
 #define CYMEDIA_SINK_CAPSULE "cymedia.sink"
 
 enum {
-    CYMEDIA_KEY = 1u << 0,          /* the frame is a keyframe */
+    CYMEDIA_KEY = 1u << 0,
     CYMEDIA_GROUP_START = 1u << 1,  /* first frame of a source group */
 };
 
