@@ -523,7 +523,9 @@ static int build_filter(cym_graph *g, branch *b, const AVFrame *in)
     AVRational sar = in->sample_aspect_ratio.num ? in->sample_aspect_ratio : (AVRational){1, 1};
     snprintf(args, sizeof args, "video_size=%dx%d:pix_fmt=%d:time_base=1/1000000:pixel_aspect=%d/%d",
              in->width, in->height, in->format, sar.num, sar.den);
-    r = avfilter_graph_create_filter(&b->src, avfilter_get_by_name("buffer"), "in", args, NULL, b->fg);
+    /* A hardware source needs hw_frames_ctx before it initializes. */
+    b->src = avfilter_graph_alloc_filter(b->fg, avfilter_get_by_name("buffer"), "in");
+    r = b->src ? 0 : AVERROR(ENOMEM);
     if (r >= 0 && in->hw_frames_ctx) {
         AVBufferSrcParameters *par = av_buffersrc_parameters_alloc();
         if (!par)
@@ -534,6 +536,8 @@ static int build_filter(cym_graph *g, branch *b, const AVFrame *in)
             av_free(par);
         }
     }
+    if (r >= 0)
+        r = avfilter_init_str(b->src, args);
     if (r >= 0)
         r = avfilter_graph_create_filter(&b->sink, avfilter_get_by_name("buffersink"), "out", NULL, NULL, b->fg);
     if (r >= 0) {

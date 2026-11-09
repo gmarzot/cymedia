@@ -8,12 +8,17 @@ from cymedia import Branch, Graph, Rung, ladder
 
 STEP = 1_000_000 // 30
 
+needs_cpu_h264 = pytest.mark.skipif(
+    not (cymedia.have_encoder("libx264") or cymedia.have_encoder("libopenh264")),
+    reason="needs a software H.264 encoder")
+
 
 def cpu_ladder(rungs, **kw):
     kw.setdefault("realtime", False)
     return ladder(rungs, profile="cpu", fps=(30, 1), **kw)
 
 
+@needs_cpu_h264
 def test_two_branches_keep_source_ids_and_align_keyframes(tmp_path):
     aus = make_source(tmp_path)
     sizes = [(320, 180), (160, 90)]
@@ -36,6 +41,7 @@ def test_two_branches_keep_source_ids_and_align_keyframes(tmp_path):
     assert [(b["frames_out"], b["errors"]) for b in st["branches"]] == [(90, 0), (90, 0)]
 
 
+@needs_cpu_h264
 def test_keyframes_follow_group_starts_not_source_idrs(tmp_path):
     aus = make_source(tmp_path, gop=30)
     with cpu_ladder([Rung(320, 180, 400_000)]) as g:
@@ -44,6 +50,7 @@ def test_keyframes_follow_group_starts_not_source_idrs(tmp_path):
     assert [o.key for o in outs] == [i % 15 == 0 for i in range(90)]
 
 
+@needs_cpu_h264
 def test_realtime_drops_cut_groups_short_and_resume_at_a_group_start(tmp_path):
     aus = make_source(tmp_path)
     with cpu_ladder([Rung(320, 180, 400_000)], realtime=True, input_depth=2, queue_depth=1) as g:
@@ -65,6 +72,7 @@ def test_realtime_drops_cut_groups_short_and_resume_at_a_group_start(tmp_path):
         assert [o.object for o in items] == list(range(len(items)))
 
 
+@needs_cpu_h264
 def test_native_sink_receives_every_frame(tmp_path):
     aus = make_source(tmp_path)
     sink = cymedia._core._counting_sink()
@@ -78,6 +86,7 @@ def test_native_sink_receives_every_frame(tmp_path):
     assert cymedia._core._counting_sink_frames(sink) == 180
 
 
+@needs_cpu_h264
 def test_push_after_flush_raises(tmp_path):
     aus = make_source(tmp_path)
     with cpu_ladder([Rung(320, 180, 400_000)]) as g:

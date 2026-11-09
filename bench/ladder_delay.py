@@ -5,9 +5,10 @@ and encode. Run past 60 s: a GPU under light load can settle into a low-power st
 after the first seconds and lose throughput.
 
     python bench/ladder_delay.py CLIP [--profile nvenc] [--codec h264] [--seconds 90] [--rate 1.0]
-                                      [--rungs 6]
+                                      [--rungs 6] [--skip-rungs 0]
 """
 import argparse
+import os
 import shutil
 import statistics
 import subprocess
@@ -48,6 +49,8 @@ def is_idr(au: bytes) -> bool:
 
 def gpu_sampler(stop: threading.Event, samples: list[str]) -> None:
     smi = shutil.which("nvidia-smi") or "/usr/lib/wsl/lib/nvidia-smi"
+    if not os.path.exists(smi):
+        return
     while not stop.wait(10):
         r = subprocess.run([smi, "--query-gpu=pstate,clocks.mem,utilization.encoder",
                             "--format=csv,noheader"], capture_output=True, text=True)
@@ -68,6 +71,7 @@ def main() -> int:
     ap.add_argument("--fps", type=int, default=60)
     ap.add_argument("--rate", type=float, default=1.0, help="push rate as a fraction of --fps")
     ap.add_argument("--rungs", type=int, default=len(LADDER))
+    ap.add_argument("--skip-rungs", type=int, default=0, help="leave out this many largest rungs")
     args = ap.parse_args()
     cymedia.set_ffmpeg_log_level(24)
 
@@ -76,10 +80,11 @@ def main() -> int:
     if not idr[0]:
         print("the clip must start with an IDR", file=sys.stderr)
         return 2
-    graph = ladder(LADDER[:args.rungs], profile=args.profile, codec=args.codec, fps=(args.fps, 1),
+    rungs = LADDER[args.skip_rungs:][:args.rungs]
+    graph = ladder(rungs, profile=args.profile, codec=args.codec, fps=(args.fps, 1),
                    realtime=True)
     counts = [dict(out=0, key_at_start=0, key_elsewhere=0, start_without_key=0)
-              for _ in range(args.rungs)]
+              for _ in rungs]
     stop = threading.Event()
 
     def drain() -> None:
@@ -125,7 +130,7 @@ def main() -> int:
           f"pushes late by over a frame {late}")
     print(f"{'rung':>10} {'out':>6} {'drop':>5} {'aband':>5} {'p50 ms':>7} {'p99 ms':>7} "
           f"{'max ms':>7}  keys at group starts / elsewhere / starts without a key")
-    for b, r in enumerate(LADDER[:args.rungs]):
+    for b, r in enumerate(rungs):
         d = graph.delays(b)
         bs, c = st["branches"][b], counts[b]
         print(f"{r.width:>5}x{r.height:<4} {c['out']:>6} {bs['frames_dropped']:>5} "

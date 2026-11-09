@@ -2,3 +2,4 @@ include LICENSE README.md CHANGELOG.md
 recursive-include src/cymedia *.pyx *.c *.h
 recursive-include tests *.py
 exclude src/cymedia/_core.c
+include scripts/build-ffmpeg.sh

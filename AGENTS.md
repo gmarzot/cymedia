@@ -10,9 +10,10 @@ Contributor guide for `cymedia`.
 | `src/cymedia/cymedia_sink.h` | the output ABI; changing it means bumping `CYMEDIA_SINK_ABI` |
 | `src/cymedia/qsink.c` | the queue sink behind `Graph.read()`, and a counting sink for tests |
 | `src/cymedia/_core.pyx` | the Python binding |
-| `src/cymedia/ladder.py` | ABR ladder profiles (`nvenc`, `cpu`) |
-| `tests/` | pytest; `test_graph_gpu.py` skips without CUDA |
+| `src/cymedia/ladder.py` | ABR ladder profiles (`nvenc`, `videotoolbox`, `cpu`) |
+| `tests/` | pytest; `test_graph_gpu.py` skips without CUDA, `test_graph_videotoolbox.py` without VideoToolbox |
 | `bench/ladder_delay.py` | live added-delay bench |
+| `scripts/build-ffmpeg.sh` | builds a pinned FFmpeg with what the profiles need |
 | `.github/workflows/release.yml` | build, test and publish a release (see Release) |
 
 ## Rules
@@ -35,7 +36,7 @@ Contributor guide for `cymedia`.
 
     .venv/bin/pip install --no-build-isolation -e . && .venv/bin/python -m pytest -q
 
-GPU work runs on a host with an NVIDIA GPU. GeForce cards cap NVENC at a fixed number of
+GPU work runs on a host with an NVIDIA GPU or on Apple silicon. GeForce cards cap NVENC at a fixed number of
 concurrent sessions; a six-rung ladder uses six.
 
 ## Release

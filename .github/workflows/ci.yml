@@ -34,6 +34,39 @@ jobs:
       - name: Test
         run: python -m pytest -q
 
+  ffmpeg-build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/cache@v4
+        id: ffmpeg
+        with:
+          path: ~/cymedia-ffmpeg
+          key: ffmpeg-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/build-ffmpeg.sh') }}
+      - name: Build tools (Linux)
+        if: runner.os == 'Linux' && steps.ffmpeg.outputs.cache-hit != 'true'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends nasm clang
+      - name: Build tools (macOS)
+        if: runner.os == 'macOS' && steps.ffmpeg.outputs.cache-hit != 'true'
+        run: brew install cmake pkg-config
+      - name: Build FFmpeg
+        if: steps.ffmpeg.outputs.cache-hit != 'true'
+        run: scripts/build-ffmpeg.sh --gpl --prefix ~/cymedia-ffmpeg
+      - name: Build and test against it
+        run: |
+          source ~/cymedia-ffmpeg/env.sh
+          python -m pip install "Cython>=3.0.10" "setuptools>=77" pytest
+          python -m pip install --no-build-isolation -e .
+          python -c "import cymedia; print(cymedia.ffmpeg_info())"
+          python -m pytest -q
+
   sdist:
     runs-on: ubuntu-24.04
     steps:
