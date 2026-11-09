@@ -124,7 +124,8 @@ climbs down the ladder; in every run it stalled for up to 1.5 s and lost groups,
 sampled in a low power state, and one run sat at a 55–62 ms p50. FFmpeg's newer threaded CLI was
 not measured. PyAV's wheels have no GPU scaler, so frames come back to system memory.
 [`bench/compare_paths.py`](https://github.com/gmarzot/cymedia/blob/main/bench/compare_paths.py)
-repeats this.
+repeats this. That host's clock ran about 4% slow, so the source was really about 57.5 fps and every
+path's delays read about 4% low.
 
 ## Used by
 
