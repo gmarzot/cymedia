@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.0a3
+
+- `videotoolbox` ladder profile: H.264 on Apple's VideoToolbox.
+- `scripts/build-ffmpeg.sh` builds a pinned FFmpeg with what the profiles need, on Linux and macOS.
+- Hardware profiles work on FFmpeg 9, which needs the hardware frames context before the filter
+  source initializes.
+- A build links the FFmpeg `pkg-config` names, even when Python's library directory holds another.
+
 ## 0.1.0a2
 
 - AV1 ladders: `ladder(..., codec="av1")` encodes with `av1_nvenc`, or libaom in realtime mode

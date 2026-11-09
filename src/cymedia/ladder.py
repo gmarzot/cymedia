@@ -50,10 +50,22 @@ def _cpu(r: Rung, fps: tuple[int, int], codec: str) -> Branch:
         strip_filler=codec == "av1")
 
 
+def _videotoolbox(r: Rung, fps: tuple[int, int], codec: str) -> Branch:
+    if codec != "h264":
+        raise ValueError(f"videotoolbox profile: no {codec} encoder")
+    return Branch(
+        filter=f"scale_vt=w={r.width}:h={r.height}",
+        encoder="h264_videotoolbox",
+        options={"flags": "low_delay", "realtime": "1", "allow_sw": "0", "prio_speed": "1",
+                 "bf": "0", "g": "100000", **_rate(r, fps)},
+        strip_filler=True)
+
+
 CODECS = ("h264", "av1")
 
 PROFILES: dict[str, tuple[str | None, Callable[[Rung, tuple[int, int], str], Branch]]] = {
     "nvenc": ("cuda", _nvenc),
+    "videotoolbox": ("videotoolbox", _videotoolbox),
     "cpu": (None, _cpu),
 }
 

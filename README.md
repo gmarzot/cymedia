@@ -8,7 +8,7 @@ and timestamps pass through unchanged, and every branch starts a keyframe at eac
 start, so equally numbered groups line up across all outputs. The first graph is an ABR ladder.
 
 **Status: alpha.** H.264 and AV1 ladders on the NVIDIA path (NVDEC, `scale_cuda`, NVENC) and in
-software, on Linux and macOS with Python 3.12 and 3.13. The API can change before 1.0.
+software, and H.264 ladders on Apple's VideoToolbox, on Linux and macOS with Python 3.12 and 3.13. The API can change before 1.0.
 
 ## Install
 
@@ -20,6 +20,17 @@ cymedia builds against the system's FFmpeg, 6.1 or later. It needs FFmpeg's deve
     pip install cymedia
 
 Prebuilt wheels with an LGPL FFmpeg are planned.
+
+Packaged FFmpeg builds differ in what they include; Homebrew's has no libaom, for example.
+[`scripts/build-ffmpeg.sh`](https://github.com/gmarzot/cymedia/blob/main/scripts/build-ffmpeg.sh)
+builds one with what the profiles need, in a directory of its own:
+
+    scripts/build-ffmpeg.sh
+    source ~/.local/cymedia-ffmpeg/env.sh
+    pip install --no-cache-dir --no-binary cymedia cymedia
+
+That is an LGPL FFmpeg with libaom, plus NVENC and `scale_cuda` on Linux or VideoToolbox on macOS.
+It has no software H.264 encoder: `--gpl` adds libx264 and makes the build GPL.
 
 ## Example
 
@@ -47,11 +58,13 @@ with ladder(rungs, profile="nvenc", codec="h264", fps=(60, 1)) as g:
 | Profile | Decode | Scale | `codec="h264"` | `codec="av1"` |
 |---|---|---|---|---|
 | `nvenc` | NVDEC | `scale_cuda` | `h264_nvenc` | `av1_nvenc` |
+| `videotoolbox` | VideoToolbox | `scale_vt` | `h264_videotoolbox` | none |
 | `cpu` | software | `scale` | libopenh264, else libx264 (veryfast, zerolatency) | libaom (realtime, cpu-used 8) |
 
 The NVENC encoders run p1, ultra low latency, CBR with a one-frame buffer and no B-frames; H.264
 filler NAL units and AV1 padding OBUs are stripped. Every profile forces a keyframe at each group
-start. SVT-AV1 is not used: version 1.7 ignores forced keyframes.
+start. VideoToolbox runs in its low-latency mode with no B-frames. SVT-AV1 is not used: version
+1.7 ignores forced keyframes.
 
 Any other graph is a list of branches:
 
@@ -87,7 +100,13 @@ encoded output, the 4K decode included (about 4.4 ms of it):
 | 30 fps, clocks held up | P2/P3 | 8.5–9.0 ms | 16.0–16.9 ms |
 
 Under a light load a GeForce card drops to a low power state and the delay doubles; no frames are
-held. [`bench/ladder_delay.py`](https://github.com/gmarzot/cymedia/blob/main/bench/ladder_delay.py) measures it on your hardware.
+held.
+
+An Apple M4, a 1080p60 source to four VideoToolbox rungs (720p to 180p):
+p50 12 ms on the first rung and 75–80 ms on the others, in realtime with no drops. It cannot keep
+up with a 2160p60 source to six rungs.
+
+[`bench/ladder_delay.py`](https://github.com/gmarzot/cymedia/blob/main/bench/ladder_delay.py) measures it on your hardware.
 
 ## Used by
 
