@@ -25,8 +25,10 @@ Contributor guide for `cymedia`.
   `read()`.
 - **Tests:** anything with per-branch state gets a test with at least two branches. A test that
   expects drops asserts that drops happened.
-- **Licensing:** see README. Never add GPL-only or nonfree FFmpeg components to a distributed
-  build.
+- **Licensing:** a distributed build links an LGPL-only FFmpeg (no `--enable-gpl`, no
+  `--enable-nonfree`; `scale_cuda` built with `--enable-cuda-llvm`) and publishes that FFmpeg's
+  source and configure line, per [FFmpeg's checklist](https://ffmpeg.org/legal.html). Distribution
+  packages often ship GPL builds: fine for development, not for redistributed wheels.
 - **Comments** say what or why in few words, never history.
 
 ## Run

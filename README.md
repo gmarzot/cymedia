@@ -108,8 +108,8 @@ Contributor rules are in [AGENTS.md](https://github.com/gmarzot/cymedia/blob/mai
 
 ## License
 
-MIT. cymedia links FFmpeg dynamically. A build for distribution must link an LGPL-only FFmpeg
-(no `--enable-gpl`, no `--enable-nonfree`; `scale_cuda` built with `--enable-cuda-llvm`) and
-publish that FFmpeg's source and configure line. Distribution packages often ship GPL builds,
-which are fine for development but not for redistributed wheels. `cymedia.ffmpeg_info()` reports
-the license of the FFmpeg in use.
+MIT. This software uses code of [FFmpeg](https://ffmpeg.org) licensed under the
+[LGPLv2.1](https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html) and its source can be
+downloaded [here](https://ffmpeg.org/download.html). cymedia ships no FFmpeg: it links the
+system's, and `cymedia.ffmpeg_info()` reports that build's license. Redistributing FFmpeg with
+cymedia is subject to [FFmpeg's terms](https://ffmpeg.org/legal.html).
