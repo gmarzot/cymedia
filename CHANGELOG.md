@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `bench/compare_paths.py`: the same NVENC ladder through cymedia, the FFmpeg CLI and PyAV.
+
 ## 0.1.0a3
 
 - `videotoolbox` ladder profile: H.264 on Apple's VideoToolbox.
