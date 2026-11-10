@@ -89,6 +89,22 @@ def test_a_late_frame_of_an_older_group_is_dropped(tmp_path):
 
 
 @needs_cpu_h264
+def test_a_restarted_source_is_taken(tmp_path):
+    aus = make_source(tmp_path)
+    order = [(i // 30, i % 30, i) for i in range(90)] + [(0, i, i) for i in range(30)]
+    with cpu_ladder([Rung(320, 180, 400_000), Rung(160, 90, 150_000)]) as g:
+        pushed = [g.push(aus[a], grp, obj, n * STEP, obj == 0)
+                  for n, (grp, obj, a) in enumerate(order)]
+        assert g.flush(timeout=60)
+        outs = g.read(timeout=0)
+        st = g.stats()
+    assert all(pushed) and st["packets_dropped"] == 0
+    for b in (0, 1):
+        assert [(o.group, o.object) for o in outs if o.branch == b] == \
+            [(grp, obj) for grp, obj, _ in order]
+
+
+@needs_cpu_h264
 def test_native_sink_receives_every_frame(tmp_path):
     aus = make_source(tmp_path)
     sink = cymedia._core._counting_sink()
