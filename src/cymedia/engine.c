@@ -831,6 +831,13 @@ int cym_graph_push(cym_graph *g, const uint8_t *data, size_t size, uint64_t grou
 {
     if (g->flushing)
         return -1;
+    /* A frame of an older group would stall the decoder until the next keyframe. */
+    if (g->have_last && group < g->last_group) {
+        GSTAT(g, packets_dropped, 1);
+        ev(g, -1, CYMEDIA_EV_INPUT_DROPPED, group, "late: group %llu after %llu",
+           (unsigned long long)group, (unsigned long long)g->last_group);
+        return 1;
+    }
     int start = key && (!g->have_last || group != g->last_group);
     g->have_last = 1;
     g->last_group = group;

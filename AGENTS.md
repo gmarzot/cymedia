@@ -21,7 +21,8 @@ Contributor guide for `cymedia`.
 - **No transport or protocol knowledge.** cymedia never learns about MoQT, QUIC, sessions or
   peers. Group and object numbers are opaque values copied from input to output.
 - **Never block a live producer.** In realtime mode queues drop at group granularity: input
-  resumes at a group start, and a lagging branch abandons the rest of a group.
+  resumes at a group start, a frame of an older group is dropped, and a lagging branch abandons
+  the rest of a group.
 - **The GIL stays released** in every engine thread; Python only touches control calls and
   `read()`.
 - **Tests:** anything with per-branch state gets a test with at least two branches. A test that

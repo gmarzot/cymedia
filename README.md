@@ -46,7 +46,8 @@ with ladder(rungs, profile="nvenc", codec="h264", fps=(60, 1)) as g:
 
 - **Input** is one H.264 access unit per `push()`: Annex B, or 4-byte length prefixes with the
   avcC passed as `extradata=`. `key` marks a group's first frame. `push()` returns False when
-  the frame was dropped.
+  the frame was dropped: input full in realtime mode, or a frame of a group older than one already
+  pushed, which would stall the decoder until the next keyframe.
 - **Output** is one `Output` per encoded frame, carrying its source frame's group, object and
   timestamp: Annex B for H.264, a temporal unit of OBUs for AV1. `g.fileno()` is readable while outputs are queued, for an event loop:
   `loop.add_reader(g.fileno(), lambda: handle(g.read(0)))`.
