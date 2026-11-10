@@ -108,6 +108,25 @@ up with a 2160p60 source to six rungs.
 
 [`bench/ladder_delay.py`](https://github.com/gmarzot/cymedia/blob/main/bench/ladder_delay.py) measures it on your hardware.
 
+### Against the alternatives
+
+The same job from an asyncio loop on the RTX 4070, 2160p60 H.264 to six NVENC rungs, medians of
+three 120 s runs. Delay runs from handing over a frame to Python holding its encoded bytes.
+
+| Path | p50 by rung | p99, slowest rung | CPU cores | 1 ms timer late, p99 | Frames out, worst run |
+|---|---|---|---|---|---|
+| cymedia | 8.4–9.2 ms | 14.6 ms | 0.39 | 0.98 ms | 7200 / 7200 |
+| FFmpeg 6.1 CLI over pipes | 7.7–13.4 ms | 1443 ms | 0.23 | 0.20 ms | 6648 / 7200 |
+| PyAV 19 threads, swscale | 14.2–19.7 ms | 23.6 ms | 2.04 | 1.17 ms | 7200 / 7200 |
+
+With nothing running the timer is 0.44 ms late. The CLI encodes rungs one after another, so delay
+climbs down the ladder; in every run it stalled for up to 1.5 s and lost groups, with the GPU
+sampled in a low power state, and one run sat at a 55–62 ms p50. FFmpeg's newer threaded CLI was
+not measured. PyAV's wheels have no GPU scaler, so frames come back to system memory.
+[`bench/compare_paths.py`](https://github.com/gmarzot/cymedia/blob/main/bench/compare_paths.py)
+repeats this. That host's clock ran about 4% slow, so the source was really about 57.5 fps and every
+path's delays read about 4% low.
+
 ## Used by
 
 [aiomoqt](https://github.com/gmarzot/aiomoqt)'s `abr_ingest` sits in front of a MoQ relay and
@@ -122,6 +141,7 @@ publishes a broadcast plus a cymedia ladder under one catalog.
 GPU tests skip unless CUDA, `h264_nvenc` and `scale_cuda` are available. The delay bench:
 
     .venv/bin/python bench/ladder_delay.py clip.mkv --profile nvenc --seconds 90
+    .venv/bin/python bench/compare_paths.py clip.mkv  # NVENC, against the CLI and PyAV
 
 Contributor rules are in [AGENTS.md](https://github.com/gmarzot/cymedia/blob/main/AGENTS.md).
 
