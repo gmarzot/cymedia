@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `push()` drops a frame of a group older than one already pushed, with an input-dropped
+  event, instead of decoding it: a late group tail stalled the decoder until the next keyframe.
 - Python 3.14: tested in CI and in the release smoke test.
 - `bench/compare_paths.py`: the same NVENC ladder through cymedia, the FFmpeg CLI and PyAV.
 
