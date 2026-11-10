@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Python 3.14: tested in CI and in the release smoke test.
 - `bench/compare_paths.py`: the same NVENC ladder through cymedia, the FFmpeg CLI and PyAV.
 
 ## 0.1.0a3
