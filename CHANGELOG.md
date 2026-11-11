@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.2
+
+- `Source` reads files and live SRT, RTMP, RTSP, HLS and UDP inputs with libavformat on a native
+  thread, and feeds a graph with no Python per frame. Video groups start at key frames; H.264
+  comes out length-prefixed with an avcC. `ladder(source=)` configures the decoder from it, and
+  `have_protocol()` and `have_format()` report what the linked FFmpeg reads. cymedia now links
+  libavformat.
+
 ## 0.1.1
 
 - In realtime mode, a packet that has waited `input_max_ms` to be decoded (default 500, 0 to turn

@@ -17,6 +17,33 @@ class Output(NamedTuple):
     data: bytes
 
 
+class Packet(NamedTuple):
+    """One packet from a Source; stream is "video" or "audio"."""
+
+    stream: str
+    group: int
+    object: int
+    pts_us: int
+    key: bool
+    data: bytes
+
+
+@dataclass(frozen=True)
+class StreamInfo:
+    """A Source's stream as probed. extradata is the decoder configuration (avcC for H.264);
+    length_prefixed video carries 4-byte NAL unit lengths instead of start codes."""
+
+    codec: str
+    extradata: bytes | None = None
+    length_prefixed: bool = False
+    width: int = 0
+    height: int = 0
+    fps: tuple[int, int] | None = None
+    sample_rate: int = 0
+    channels: int = 0
+    bit_rate: int = 0
+
+
 @dataclass(frozen=True)
 class Branch:
     """A libavfilter chain (empty passes frames through) and the encoder after it.

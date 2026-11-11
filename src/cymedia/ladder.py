@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from collections.abc import Callable, Iterable
 
-from cymedia._core import Graph, have_encoder
+from cymedia._core import Graph, Source, have_encoder
 from cymedia._types import Branch
 
 
@@ -71,9 +71,16 @@ PROFILES: dict[str, tuple[str | None, Callable[[Rung, tuple[int, int], str], Bra
 
 
 def ladder(rungs: Iterable[Rung], *, profile: str = "nvenc", codec: str = "h264",
-           fps: tuple[int, int] = (60, 1), **graph_kw) -> Graph:
-    """A graph with one branch per rung, in order, encoding `codec` (h264 or av1)."""
+           fps: tuple[int, int] | None = None, source: Source | None = None,
+           **graph_kw) -> Graph:
+    """A graph with one branch per rung, in order, encoding `codec` (h264 or av1). A `source`
+    sets the decoder, its configuration and the frame rate (default 60) from its video."""
     if codec not in CODECS:
         raise ValueError(f"codec {codec!r}: one of {', '.join(CODECS)}")
+    if source is not None and source.video is not None:
+        graph_kw.setdefault("decoder", source.video.codec)
+        graph_kw.setdefault("extradata", source.video.extradata)
+        fps = fps or source.video.fps
+    fps = fps or (60, 1)
     hwaccel, make = PROFILES[profile]
     return Graph([make(r, fps, codec) for r in rungs], hwaccel=hwaccel, fps=fps, **graph_kw)

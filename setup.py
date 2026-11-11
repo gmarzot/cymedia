@@ -3,7 +3,7 @@ import subprocess
 from Cython.Build import cythonize
 from setuptools import Extension, setup
 
-LIBS = ["libavcodec", "libavfilter", "libavutil"]
+LIBS = ["libavcodec", "libavfilter", "libavformat", "libavutil"]
 
 
 def pkg_config(flag):
@@ -15,7 +15,8 @@ link = pkg_config("--libs")
 # library_dirs come before Python's own -L, which may hold another FFmpeg.
 ext = Extension(
     "cymedia._core",
-    sources=["src/cymedia/_core.pyx", "src/cymedia/engine.c", "src/cymedia/qsink.c"],
+    sources=["src/cymedia/_core.pyx", "src/cymedia/engine.c", "src/cymedia/qsink.c",
+             "src/cymedia/source.c"],
     include_dirs=["src/cymedia"],
     library_dirs=[a[2:] for a in link if a.startswith("-L")],
     libraries=[a[2:] for a in link if a.startswith("-l")],
