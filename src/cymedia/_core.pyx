@@ -8,7 +8,7 @@ from libc.stdint cimport int32_t, int64_t, uint8_t, uint32_t, uint64_t
 from libc.stdlib cimport free, malloc
 from libc.string cimport memset
 
-from cymedia._types import Output
+from cymedia._types import Output, Packet, StreamInfo
 
 log = logging.getLogger("cymedia")
 
@@ -83,6 +83,42 @@ cdef extern from "engine.h" nogil:
     int cym_hw_available(const char *type, const char *device)
 
 
+cdef extern from "source.h" nogil:
+    enum:
+        CYM_SOURCE_VIDEO
+        CYM_SOURCE_AUDIO
+    ctypedef struct cym_source:
+        pass
+    ctypedef struct cym_stream_info:
+        int present
+        char codec[32]
+        const uint8_t *extradata
+        int extradata_size
+        int length_prefixed
+        int width
+        int height
+        int fps_num
+        int fps_den
+        int sample_rate
+        int channels
+        int64_t bit_rate
+    ctypedef struct cym_source_stats:
+        uint64_t video_packets
+        uint64_t audio_packets
+        uint64_t before_key
+        uint64_t graph_dropped
+        uint64_t bytes
+    cym_source *cym_source_open(const char *url, const char *options, int timeout_ms, char *err,
+                                size_t errlen)
+    void cym_source_info(const cym_source *s, int stream, cym_stream_info *out)
+    int cym_source_start(cym_source *s, cym_graph *graph, cymedia_sink sink, int passthrough,
+                         int pace)
+    void cym_source_get_stats(cym_source *s, cym_source_stats *out)
+    void cym_source_close(cym_source *s)
+    int cym_have_protocol(const char *name)
+    int cym_have_format(const char *name)
+
+
 cdef extern from "qsink.h" nogil:
     cdef struct cym_qitem:
         cym_qitem *next
@@ -147,6 +183,7 @@ cdef class Graph:
     cdef cym_graph *_g
     cdef cym_qsink *_q
     cdef object _capsule
+    cdef object _source
     cdef readonly int nbranches
     cdef readonly bint realtime
 
@@ -308,6 +345,9 @@ cdef class Graph:
             free(buf)
 
     def close(self):
+        if self._source is not None:
+            self._source.close()
+            self._source = None
         cdef cym_graph *g = self._g
         self._g = NULL
         if g != NULL:
@@ -325,6 +365,170 @@ cdef class Graph:
 
     def __dealloc__(self):
         self.close()
+
+
+_STREAMS = ("video", "audio")
+
+
+cdef object _stream_info(cym_source *s, int stream):
+    cdef cym_stream_info i
+    cym_source_info(s, stream, &i)
+    if not i.present:
+        return None
+    xd = (PyBytes_FromStringAndSize(<const char *>i.extradata, i.extradata_size)
+          if i.extradata_size else None)
+    return StreamInfo(codec=i.codec.decode(), extradata=xd,
+                      length_prefixed=bool(i.length_prefixed), width=i.width, height=i.height,
+                      fps=(i.fps_num, i.fps_den) if i.fps_num > 0 else None,
+                      sample_rate=i.sample_rate, channels=i.channels, bit_rate=i.bit_rate)
+
+
+def _is_file(url):
+    url = str(url)
+    return "://" not in url or url.startswith("file:")
+
+
+cdef class Source:
+    """Reads an input with FFmpeg's libavformat on a native thread: a file, or a live SRT, RTMP,
+    RTSP, HLS or UDP stream. ``options`` are libavformat options, e.g. ``{"listen": "1"}`` to be
+    an RTMP server; ``timeout`` bounds the open, in seconds.
+
+    The best video stream and the best audio stream are read. Video groups start at key frames,
+    and every audio frame is a group of its own. Timestamps are microseconds from the first packet.
+    H.264 comes out length-prefixed, with an avcC as ``video.extradata``.
+    """
+
+    cdef cym_source *_s
+    cdef cym_qsink *_q
+    cdef readonly object url
+    cdef readonly object video
+    cdef readonly object audio
+    cdef readonly bint ended
+    cdef readonly object error
+
+    def __cinit__(self, url, options=None, *, timeout=None):
+        cdef bytes u = _b(url)
+        cdef bytes o = _opts(options)
+        cdef const char *up = u
+        cdef const char *op = o
+        cdef int ms = _ms(timeout)
+        cdef char err[256]
+        cdef cym_source *s
+        self._s = NULL
+        self._q = NULL
+        memset(err, 0, sizeof(err))
+        with nogil:
+            s = cym_source_open(up, op, ms, err, sizeof(err))
+        if s == NULL:
+            raise OSError(err.decode(errors="replace"))
+        self._s = s
+        self.url = url
+        self.video = _stream_info(s, CYM_SOURCE_VIDEO)
+        self.audio = _stream_info(s, CYM_SOURCE_AUDIO)
+
+    def start(self, Graph graph=None, *, passthrough=True, pace=None):
+        """Starts reading. ``graph`` decodes the video natively, from the first key frame, and then
+        takes no push() from Python; closing it closes this source. read() returns the audio and,
+        with ``passthrough``, the video. ``pace`` holds each packet to its timestamp; by default
+        files are paced and network inputs are not."""
+        cdef cymedia_sink sink
+        cdef cym_graph *g = NULL
+        cdef int pc = _is_file(self.url) if pace is None else bool(pace)
+        if self._s == NULL:
+            raise RuntimeError("source is closed")
+        if self._q != NULL:
+            raise RuntimeError("source already started")
+        if graph is not None:
+            if graph._g == NULL:
+                raise RuntimeError("graph is closed")
+            if graph._source is not None:
+                raise RuntimeError("graph already has a source")
+            g = graph._g
+        self._q = cym_qsink_create()
+        if self._q == NULL:
+            raise MemoryError()
+        sink = cym_qsink_sink(self._q)
+        if cym_source_start(self._s, g, sink, bool(passthrough), pc) != 0:
+            raise RuntimeError("source did not start")
+        if graph is not None:
+            graph._source = self
+
+    def read(self, timeout=None):
+        """Returns the packets read so far, waiting up to ``timeout`` seconds for the first.
+        ``ended`` is set once the input ends or fails; ``error`` says why it failed."""
+        cdef cym_qitem *head
+        cdef cym_qitem *it
+        cdef int ms = _ms(timeout)
+        if self._q == NULL:
+            raise RuntimeError("source is not started")
+        with nogil:
+            head = cym_qsink_take(self._q, ms)
+        out = []
+        it = head
+        try:
+            while it != NULL:
+                if it.is_event:
+                    text = it.msg.decode(errors="replace")
+                    if it.code == CYMEDIA_EV_END:
+                        self.ended = True
+                        log.info("source %s: %s", self.url, text)
+                    elif it.code == CYMEDIA_EV_ERROR:
+                        self.ended = True
+                        self.error = text
+                        log.error("source %s: %s", self.url, text)
+                else:
+                    out.append(Packet(
+                        _STREAMS[it.meta.branch], it.meta.group, it.meta.obj, it.meta.pts_us,
+                        bool(it.meta.flags & CYMEDIA_KEY),
+                        PyBytes_FromStringAndSize(<const char *>it.data, it.size)))
+                it = it.next
+        finally:
+            cym_qitem_free(head)
+        return out
+
+    def fileno(self):
+        """A descriptor that is readable while packets are queued."""
+        if self._q == NULL:
+            raise RuntimeError("source is not started")
+        return cym_qsink_fd(self._q)
+
+    def stats(self):
+        cdef cym_source_stats st
+        if self._s == NULL:
+            raise RuntimeError("source is closed")
+        cym_source_get_stats(self._s, &st)
+        return dict(video_packets=st.video_packets, audio_packets=st.audio_packets,
+                    before_key=st.before_key, graph_dropped=st.graph_dropped, bytes=st.bytes)
+
+    def close(self):
+        """Stops reading, interrupting a blocked read."""
+        cdef cym_source *s = self._s
+        self._s = NULL
+        if s != NULL:
+            with nogil:
+                cym_source_close(s)
+        if self._q != NULL:
+            cym_qsink_destroy(self._q)
+            self._q = NULL
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
+    def __dealloc__(self):
+        self.close()
+
+
+def have_protocol(name):
+    """True when the linked libavformat reads this protocol, e.g. "srt" or "rtmp"."""
+    return bool(cym_have_protocol(_b(name)))
+
+
+def have_format(name):
+    """True when the linked libavformat has this input format, e.g. "rtsp" or "hls"."""
+    return bool(cym_have_format(_b(name)))
 
 
 def _log_event(branch, code, group, msg):

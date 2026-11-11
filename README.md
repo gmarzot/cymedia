@@ -6,6 +6,7 @@ A graph decodes a source once and feeds any number of branches. Each branch is a
 chain ending in an encoder, and its output goes to a sink. Source group numbers, object numbers
 and timestamps pass through unchanged, and every branch starts a keyframe at each source group
 start, so equally numbered groups line up across all outputs. The first graph is an ABR ladder.
+A `Source` reads files and live SRT, RTMP, RTSP and HLS inputs into a graph natively.
 
 **Status: alpha.** H.264 and AV1 ladders on the NVIDIA path (NVDEC, `scale_cuda`, NVENC) and in
 software, and H.264 ladders on Apple's VideoToolbox, on Linux and macOS with Python 3.12 and 3.13. The API can change before 1.0.
@@ -15,7 +16,7 @@ software, and H.264 ladders on Apple's VideoToolbox, on Linux and macOS with Pyt
 cymedia builds against the system's FFmpeg, 6.1 or later. It needs FFmpeg's development files,
 `pkg-config` and a C compiler:
 
-    sudo apt-get install pkg-config libavcodec-dev libavfilter-dev libavutil-dev   # Ubuntu 24.04
+    sudo apt-get install pkg-config libavcodec-dev libavfilter-dev libavformat-dev libavutil-dev
     brew install ffmpeg pkg-config                                                 # macOS
     pip install cymedia
 
@@ -55,6 +56,40 @@ with ladder(rungs, profile="nvenc", codec="h264", fps=(60, 1)) as g:
 - **`flush(timeout)`** ends input and waits for every branch's last frame; `stats()` and
   `delays(branch)` report counters and recent push-to-output delays.
 
+### Reading an input
+
+`Source` reads anything the linked libavformat opens, on a native thread: files, and live SRT,
+RTMP, RTSP, HLS or UDP inputs. It feeds a graph with no Python per frame, and hands the audio and,
+with `passthrough`, the video to Python:
+
+```python
+from cymedia import Rung, Source, ladder
+
+with Source("srt://0.0.0.0:9000?mode=listener", timeout=30) as src, \
+        ladder(rungs, profile="nvenc", source=src) as g:
+    src.start(g)
+    while not src.ended:
+        for pkt in src.read(timeout=0.1):
+            ...  # pkt.stream ("video" or "audio"), pkt.group, pkt.object, pkt.pts_us, pkt.key, pkt.data
+        for out in g.read(timeout=0):
+            ...
+```
+
+- **Options** are libavformat's: `{"listen": "1"}` makes an RTMP server and
+  `{"rtsp_flags": "listen", "listen_timeout": "30"}` an RTSP one (FFmpeg 9 fails to listen
+  without a `listen_timeout`); an SRT listener takes `?mode=listener`. `timeout` bounds the open,
+  in seconds.
+- **Streams:** `video` and `audio` describe the best video and audio streams. H.264 comes out
+  length-prefixed, with an avcC as `video.extradata`, whatever the container.
+  `ladder(..., source=src)` takes the decoder, its configuration and the frame rate from it.
+- **Numbering:** video groups start at key frames and every audio frame is a group of its own.
+  Timestamps are microseconds from the first packet. Files are paced to their timestamps unless
+  `start(pace=False)`.
+- **Ending:** `ended` is set when the input ends or fails, and `error` says why. Closing the graph
+  closes its source, and `close()` interrupts a blocked read. To reconnect, open a new `Source`.
+- `have_protocol("srt")` and `have_format("rtsp")` say what the linked FFmpeg reads. Ubuntu's
+  reads SRT, RTMP, RTSP and HLS; Homebrew's has no SRT.
+
 ### Profiles
 
 | Profile | Decode | Scale | `codec="h264"` | `codec="av1"` |
@@ -81,6 +116,7 @@ g = Graph([Branch("scale=640:360,format=yuv420p", "libx264", {"preset": "veryfas
 
 - One decode thread decodes each source frame once, then runs every branch's filter chain.
 - Each branch encodes on its own thread. Python's GIL is released throughout.
+- A `Source` reads and demuxes on its own thread and pushes video into its graph from there.
 - In realtime mode (the default) a full queue drops instead of blocking. Input resumes at the next
   group start; a branch that falls behind abandons the rest of that group, so a group is cut
   short and never has a hole in it. A packet that has waited `input_max_ms` to be decoded (500

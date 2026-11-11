@@ -8,10 +8,11 @@ Contributor guide for `cymedia`.
 |---|---|
 | `src/cymedia/engine.c`, `engine.h` | the graph engine in C: decode thread, per-branch encode threads, queues, drop policy |
 | `src/cymedia/cymedia_sink.h` | the output ABI; changing it means bumping `CYMEDIA_SINK_ABI` |
-| `src/cymedia/qsink.c` | the queue sink behind `Graph.read()`, and a counting sink for tests |
+| `src/cymedia/source.c`, `source.h` | inputs on libavformat: probe, reader thread, group numbering, Annex B to length prefixes |
+| `src/cymedia/qsink.c` | the queue sink behind `Graph.read()` and `Source.read()`, and a counting sink for tests |
 | `src/cymedia/_core.pyx` | the Python binding |
 | `src/cymedia/ladder.py` | ABR ladder profiles (`nvenc`, `videotoolbox`, `cpu`) |
-| `tests/` | pytest; `test_graph_gpu.py` skips without CUDA, `test_graph_videotoolbox.py` without VideoToolbox |
+| `tests/` | pytest; `test_graph_gpu.py` skips without CUDA, `test_graph_videotoolbox.py` without VideoToolbox; `test_source.py` runs SRT, RTMP, RTSP and HLS loopbacks against the `ffmpeg` command, each skipped without its protocol |
 | `bench/ladder_delay.py` | live added-delay bench |
 | `scripts/build-ffmpeg.sh` | builds a pinned FFmpeg with what the profiles need |
 | `.github/workflows/release.yml` | build, test and publish a release (see Release) |
