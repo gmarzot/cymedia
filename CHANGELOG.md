@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.0
 
 - `push()` drops a frame of a group older than one already pushed, with an input-dropped
   event, instead of decoding it: a late group tail stalled the decoder until the next keyframe.
