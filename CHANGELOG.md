@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- In realtime mode, a packet that has waited `input_max_ms` to be decoded (default 500, 0 to turn
+  off) is dropped with the rest of its group, once every encoder has opened. Overload had added
+  up to the 240-frame input queue's worth of delay.
+
 ## 0.1.0
 
 - `push()` drops a frame of a group older than one already pushed, with an input-dropped

@@ -79,6 +79,8 @@ typedef struct branch {
 struct cym_graph {
     cymedia_sink sink;
     int fps_num, fps_den, realtime;
+    int64_t input_max_ns;
+    int64_t t_open_ns; /* decode thread: when every encoder had opened */
 
     AVCodecContext *dec;
     AVBufferRef *hwdev;
@@ -659,13 +661,46 @@ static void decode(cym_graph *g, AVPacket *pkt)
     }
 }
 
+/* Drops a packet that waited over input_max_ns to be decoded, with the rest of its group. The wait
+   counts from when every encoder has opened: until then the decode thread waits for first opens. */
+static int stale_input(cym_graph *g, const item *it, int *skipping)
+{
+    if (*skipping && !(it->meta.pub.flags & CYMEDIA_GROUP_START))
+        goto drop;
+    *skipping = 0;
+    if (!g->input_max_ns)
+        return 0;
+    if (!g->t_open_ns) {
+        for (int i = 0; i < g->nb; i++)
+            if (!__atomic_load_n(&g->b[i].opened, __ATOMIC_ACQUIRE))
+                return 0;
+        g->t_open_ns = now_ns();
+    }
+    int64_t since = it->meta.t_push_ns > g->t_open_ns ? it->meta.t_push_ns : g->t_open_ns;
+    if (now_ns() - since <= g->input_max_ns)
+        return 0;
+    *skipping = 1;
+    ev(g, -1, CYMEDIA_EV_INPUT_DROPPED, it->meta.pub.group, "input waited over %lld ms",
+       (long long)(g->input_max_ns / 1000000));
+drop:
+    pthread_mutex_lock(&g->mu);
+    g->st.packets_in--; /* counted at push; it never reaches the decoder */
+    g->st.packets_dropped++;
+    pthread_mutex_unlock(&g->mu);
+    return 1;
+}
+
 static void *decode_main(void *arg)
 {
     cym_graph *g = arg;
     item *it;
-    int eof = 0;
+    int eof = 0, skipping = 0;
     while ((it = q_pop(&g->inq))) {
         eof = it->eof;
+        if (!eof && stale_input(g, it, &skipping)) {
+            free_item(it);
+            continue;
+        }
         if (!eof)
             meta_put(&g->dmeta, &it->meta);
         decode(g, eof ? NULL : it->pkt);
@@ -788,6 +823,8 @@ cym_graph *cym_graph_create(const cym_graph_cfg *cfg, char *err, size_t errlen)
     g->fps_num = cfg->fps_num > 0 ? cfg->fps_num : 60;
     g->fps_den = cfg->fps_den > 0 ? cfg->fps_den : 1;
     g->realtime = cfg->realtime;
+    if (cfg->realtime && cfg->input_max_ms > 0)
+        g->input_max_ns = (int64_t)cfg->input_max_ms * 1000000;
     g->nb = cfg->nbranches;
     g->b = calloc((size_t)g->nb, sizeof(branch));
     if (!g->b) {

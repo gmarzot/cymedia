@@ -22,6 +22,7 @@ typedef struct cym_graph_cfg {
     int fps_num, fps_den;     /* nominal frame rate, passed to encoders */
     int extra_hw_frames;      /* extra decoder surfaces */
     int input_depth;          /* packets queued ahead of the decoder */
+    int input_max_ms;         /* realtime: drop a packet's group once it waited this long; 0 off */
     int queue_depth;          /* frames queued ahead of each encoder */
     int realtime;             /* 1: drop on full queues; 0: block */
     int nbranches;
