@@ -22,7 +22,7 @@ Contributor guide for `cymedia`.
   peers. Group and object numbers are opaque values copied from input to output.
 - **Never block a live producer.** In realtime mode queues drop at group granularity: input
   resumes at a group start, a frame of an older group is dropped, and a lagging branch abandons
-  the rest of a group.
+  the rest of a group. Input queues are bounded in time (`input_max_ms`) as well as frames.
 - **The GIL stays released** in every engine thread; Python only touches control calls and
   `read()`.
 - **Tests:** anything with per-branch state gets a test with at least two branches. A test that

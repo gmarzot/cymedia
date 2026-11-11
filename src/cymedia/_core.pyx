@@ -51,6 +51,7 @@ cdef extern from "engine.h" nogil:
         int fps_den
         int extra_hw_frames
         int input_depth
+        int input_max_ms
         int queue_depth
         int realtime
         int nbranches
@@ -138,7 +139,9 @@ cdef class Graph:
     Each branch is a libavfilter chain ending in an encoder, run on its own thread. Outputs carry
     the source's group, object and timestamp, and every branch starts a keyframe at each source
     group start. With ``realtime`` a full queue drops: input resumes at the next group start, and
-    a branch that falls behind abandons the rest of the group. Without it, queues block.
+    a branch that falls behind abandons the rest of the group. Without it, queues block. A packet
+    that has waited ``input_max_ms`` to be decoded is dropped with the rest of its group (0: no
+    time bound), from when every encoder has opened.
     """
 
     cdef cym_graph *_g
@@ -148,7 +151,7 @@ cdef class Graph:
     cdef readonly bint realtime
 
     def __cinit__(self, branches, *, decoder="h264", hwaccel=None, device=None, extradata=None,
-                  fps=(60, 1), extra_hw_frames=8, input_depth=240, queue_depth=4,
+                  fps=(60, 1), extra_hw_frames=8, input_depth=240, input_max_ms=500, queue_depth=4,
                   realtime=True, sink=None):
         cdef cym_graph_cfg cfg
         cdef cym_branch_cfg *bc = NULL
@@ -190,6 +193,7 @@ cdef class Graph:
             cfg.fps_num, cfg.fps_den = int(fps[0]), int(fps[1])
             cfg.extra_hw_frames = extra_hw_frames
             cfg.input_depth = input_depth
+            cfg.input_max_ms = input_max_ms
             cfg.queue_depth = queue_depth
             cfg.realtime = bool(realtime)
             cfg.nbranches = len(branches)

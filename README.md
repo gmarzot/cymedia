@@ -83,8 +83,11 @@ g = Graph([Branch("scale=640:360,format=yuv420p", "libx264", {"preset": "veryfas
 - Each branch encodes on its own thread. Python's GIL is released throughout.
 - In realtime mode (the default) a full queue drops instead of blocking. Input resumes at the next
   group start; a branch that falls behind abandons the rest of that group, so a group is cut
-  short and never has a hole in it. While a branch's encoder first opens, frames wait rather
-  than drop. With `realtime=False`, queues block instead.
+  short and never has a hole in it. A packet that has waited `input_max_ms` to be decoded (500
+  by default, 0 for no time bound) is dropped with the rest of its group, so overload adds
+  bounded delay.
+  While a branch's encoder first opens, frames wait rather than drop. With `realtime=False`,
+  queues block instead.
 - Outputs go to a sink with a C ABI ([`cymedia_sink.h`](https://github.com/gmarzot/cymedia/blob/main/src/cymedia/cymedia_sink.h)). The
   default sink queues them for `Graph.read()`; a native consumer passes its own sink as a
   `cymedia.sink` capsule and keeps frames out of Python entirely.

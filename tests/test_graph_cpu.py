@@ -72,6 +72,47 @@ def test_realtime_drops_cut_groups_short_and_resume_at_a_group_start(tmp_path):
         assert [o.object for o in items] == list(range(len(items)))
 
 
+def _push_faster_than_decode(g, aus, gop, gap_s=0.00025):
+    """Group 0, a pause while the encoders open, then the rest `gap_s` apart."""
+    for i, au in enumerate(aus):
+        if i == gop:
+            time.sleep(0.5)
+        elif i > gop:
+            t = time.perf_counter() + gap_s
+            while time.perf_counter() < t:
+                pass
+        g.push(au, i // gop, i % gop, i * STEP, i % gop == 0)
+    assert g.flush(timeout=60)
+    return g.read(timeout=0), g.stats()
+
+
+@needs_cpu_h264
+def test_a_packet_that_waited_input_max_ms_is_dropped_with_its_group(tmp_path, caplog):
+    aus = make_source(tmp_path, 1920, 1080, frames=120)
+    with cpu_ladder([Rung(320, 180, 400_000)], realtime=True, input_depth=1000, queue_depth=64,
+                    input_max_ms=10) as g:
+        outs, st = _push_faster_than_decode(g, aus, 30)
+    assert st["packets_dropped"] > 0
+    assert st["packets_in"] + st["packets_dropped"] == 120
+    assert "input waited over 10 ms" in caplog.text
+    groups = {}
+    for o in outs:
+        groups.setdefault(o.group, []).append(o)
+    for items in groups.values():
+        assert items[0].key and items[0].group_start
+        assert [o.object for o in items] == list(range(len(items)))
+
+
+@needs_cpu_h264
+def test_input_max_ms_zero_bounds_input_by_frames_only(tmp_path):
+    aus = make_source(tmp_path, 1920, 1080, frames=120)
+    with cpu_ladder([Rung(320, 180, 400_000)], realtime=True, input_depth=1000, queue_depth=64,
+                    input_max_ms=0) as g:
+        outs, st = _push_faster_than_decode(g, aus, 30)
+    assert st["packets_dropped"] == 0
+    assert [(o.group, o.object) for o in outs] == [(i // 30, i % 30) for i in range(120)]
+
+
 @needs_cpu_h264
 def test_a_late_frame_of_an_older_group_is_dropped(tmp_path):
     aus = make_source(tmp_path)
