@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.1
 
 - In realtime mode, a packet that has waited `input_max_ms` to be decoded (default 500, 0 to turn
   off) is dropped with the rest of its group, once every encoder has opened. Overload had added
