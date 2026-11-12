@@ -86,8 +86,10 @@ cmake --install aom-build >/dev/null
 echo "== OpenSSL $OPENSSL_VERSION"
 fetch "https://github.com/openssl/openssl/releases/download/openssl-$OPENSSL_VERSION/openssl-$OPENSSL_VERSION.tar.gz" \
     "$OPENSSL_SHA256"
-(cd "openssl-$OPENSSL_VERSION" && ./Configure --prefix="$prefix" --libdir=lib no-shared no-tests \
-    no-docs -fPIC >/dev/null && make -j "$jobs" build_sw >/dev/null && make install_sw >/dev/null)
+# --openssldir: verify peers against the system's CA certificates.
+(cd "openssl-$OPENSSL_VERSION" && ./Configure --prefix="$prefix" --libdir=lib --openssldir=/etc/ssl \
+    no-shared no-tests no-docs -fPIC >/dev/null && make -j "$jobs" build_sw >/dev/null \
+    && make install_sw >/dev/null)
 
 echo "== libsrt"
 fetch_git https://github.com/Haivision/srt.git "$SRT_COMMIT" srt
