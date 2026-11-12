@@ -50,13 +50,16 @@ def write_ivf(path, frames: list[bytes], width: int, height: int, fps: int) -> N
     path.write_bytes(head + body)
 
 
-def make_source(tmp_path, width=640, height=360, frames=90, gop=30, rate=30) -> list[bytes]:
-    """A testsrc2 H.264 stream with an IDR every `gop` frames, as access units."""
+def make_source(tmp_path, width=640, height=360, frames=90, gop=30, rate=30,
+                noise=0) -> list[bytes]:
+    """A testsrc2 H.264 stream with an IDR every `gop` frames, as access units;
+    `noise` adds temporal noise of that strength, to load rate control."""
     if not shutil.which("ffmpeg"):
         pytest.skip("needs the ffmpeg command")
-    out = tmp_path / f"src_{width}x{height}_{frames}_{gop}.h264"
+    out = tmp_path / f"src_{width}x{height}_{frames}_{gop}_{noise}.h264"
+    vf = f",noise=alls={noise}:allf=t" if noise else ""
     cmd = ["ffmpeg", "-v", "error", "-y", "-f", "lavfi",
-           "-i", f"testsrc2=size={width}x{height}:rate={rate}", "-frames:v", str(frames),
+           "-i", f"testsrc2=size={width}x{height}:rate={rate}{vf}", "-frames:v", str(frames),
            "-pix_fmt", "yuv420p", "-c:v", "libx264", "-preset", "ultrafast", "-bf", "0",
            "-g", str(gop), "-keyint_min", str(gop), "-sc_threshold", "0",
            "-bsf:v", "h264_metadata=aud=insert", "-f", "h264", str(out)]

@@ -9,6 +9,8 @@ pytestmark = pytest.mark.skipif(
          and cymedia.hw_available("cuda")),
     reason="needs CUDA, NVENC and scale_cuda")
 
+NOISE = 20
+
 
 def test_nvenc_ladder_keeps_ids_aligns_keyframes_and_strips_filler(tmp_path):
     aus = make_source(tmp_path, width=1280, height=720, frames=120, gop=60, rate=60)
@@ -28,6 +30,18 @@ def test_nvenc_ladder_keeps_ids_aligns_keyframes_and_strips_filler(tmp_path):
         frames = probe_frames(path)
         assert len(frames) == 120
         assert {(f["width"], f["height"]) for f in frames} == {sizes[b]}
+
+
+def test_nvenc_h264_rungs_keep_to_their_bit_rates(tmp_path):
+    aus = make_source(tmp_path, width=1280, height=720, frames=240, gop=120, rate=60,
+                      noise=NOISE)
+    rungs = [Rung(1280, 720, 2_500_000), Rung(640, 360, 800_000)]
+    with ladder(rungs, profile="nvenc", fps=(60, 1), realtime=False) as g:
+        by = run_graph(g, aus, 120, fps=60)
+    for b, rung in enumerate(rungs):
+        bps = sum(len(o.data) for o in by[b]) * 8 * 60 / len(by[b])
+        assert len(by[b]) == 240
+        assert bps <= rung.bit_rate * 1.05, f"{rung}: {bps / 1e3:.0f} kbps"
 
 
 @pytest.mark.skipif(not cymedia.have_encoder("av1_nvenc"), reason="needs AV1 NVENC")

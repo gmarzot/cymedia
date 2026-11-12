@@ -15,10 +15,10 @@ class Rung:
     bit_rate: int
 
 
-def _rate(r: Rung, fps: tuple[int, int]) -> dict[str, str]:
-    # CBR with a one-frame buffer caps keyframe bursts.
+def _rate(r: Rung, fps: tuple[int, int], frames: int = 1) -> dict[str, str]:
+    # CBR with a buffer of a frame or two caps keyframe bursts.
     return {"b": str(r.bit_rate), "maxrate": str(r.bit_rate),
-            "bufsize": str(r.bit_rate * fps[1] // fps[0])}
+            "bufsize": str(r.bit_rate * frames * fps[1] // fps[0])}
 
 
 _NVENC_LOW_DELAY = {"preset": "p1", "tune": "ull", "rc": "cbr", "bf": "0", "delay": "0",
@@ -26,10 +26,11 @@ _NVENC_LOW_DELAY = {"preset": "p1", "tune": "ull", "rc": "cbr", "bf": "0", "dela
 
 
 def _nvenc(r: Rung, fps: tuple[int, int], codec: str) -> Branch:
+    # h264_nvenc overruns a one-frame buffer, by up to a fifth at 1080p60; two frames hold.
     return Branch(
         filter=f"scale_cuda=w={r.width}:h={r.height}",
         encoder=f"{codec}_nvenc",
-        options={**_NVENC_LOW_DELAY, **_rate(r, fps)},
+        options={**_NVENC_LOW_DELAY, **_rate(r, fps, 2 if codec == "h264" else 1)},
         strip_filler=True)
 
 

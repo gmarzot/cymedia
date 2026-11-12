@@ -5,6 +5,9 @@
 - `scripts/build-ffmpeg.sh` builds OpenSSL 3.5 and libsrt 1.5 into FFmpeg, so `Source` opens SRT,
   `rtmps://` and `https://` HLS inputs. `--gpl` builds are now GPLv3: FFmpeg takes OpenSSL 3 only
   under version 3.
+- The `nvenc` profile gives H.264 rungs a two-frame rate buffer instead of one. h264_nvenc could not
+  hold one frame and ran 6–19% over the rung's bit rate on 1080p60 content; with two it runs 3–6%
+  under, after the filler it pads with is stripped. AV1 rungs keep one frame: they hold it.
 
 ## 0.1.2
 
