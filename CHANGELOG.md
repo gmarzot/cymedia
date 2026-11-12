@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.3
 
 - `scripts/build-ffmpeg.sh` builds OpenSSL 3.5 and libsrt 1.5 into FFmpeg, so `Source` opens SRT,
   `rtmps://` and `https://` HLS inputs. `--gpl` builds are now GPLv3: FFmpeg takes OpenSSL 3 only
