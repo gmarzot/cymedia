@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- The `nvenc` profile gives H.264 rungs a two-frame rate buffer instead of one. h264_nvenc could not
+  hold one frame and ran 6–19% over the rung's bit rate on 1080p60 content; with two it runs 3–6%
+  under, after the filler it pads with is stripped. AV1 rungs keep one frame: they hold it.
+
 ## 0.1.2
 
 - `Source` reads files and live SRT, RTMP, RTSP, HLS and UDP inputs with libavformat on a native
