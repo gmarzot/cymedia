@@ -30,8 +30,9 @@ builds one with what the profiles need, in a directory of its own:
     source ~/.local/cymedia-ffmpeg/env.sh
     pip install --no-cache-dir --no-binary cymedia cymedia
 
-That is an LGPL FFmpeg with libaom, plus NVENC and `scale_cuda` on Linux or VideoToolbox on macOS.
-It has no software H.264 encoder: `--gpl` adds libx264 and makes the build GPL.
+That is an LGPL FFmpeg with libaom, OpenSSL and libsrt, plus NVENC and `scale_cuda` on Linux or
+VideoToolbox on macOS, so SRT and TLS inputs (`rtmps://`, `https://` HLS) open. It has no
+software H.264 encoder: `--gpl` adds libx264 and makes the build GPLv3.
 
 ## Example
 
