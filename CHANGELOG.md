@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.4
 
 - In realtime mode a branch no longer abandons its first group: the decode thread waits for it
   through that group, and `input_max_ms` counts from when every branch has left it. NVENC's first
