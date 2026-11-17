@@ -72,6 +72,18 @@ def test_realtime_drops_cut_groups_short_and_resume_at_a_group_start(tmp_path):
         assert [o.object for o in items] == list(range(len(items)))
 
 
+@needs_cpu_h264
+def test_realtime_branches_keep_their_first_group(tmp_path):
+    aus = make_source(tmp_path, 1280, 720)
+    rungs = [Rung(1280, 720, 2_000_000), Rung(640, 360, 800_000)]
+    with cpu_ladder(rungs, realtime=True, input_depth=1000, input_max_ms=20, queue_depth=1) as g:
+        by = run_graph(g, aus, 30)
+        st = g.stats()
+    for b in range(2):
+        assert [o.object for o in by[b] if o.group == 0] == list(range(30))
+    assert st["packets_dropped"] + sum(b["groups_abandoned"] for b in st["branches"]) > 0
+
+
 def _push_faster_than_decode(g, aus, gop, gap_s=0.00025):
     """Group 0, a pause while the encoders open, then the rest `gap_s` apart."""
     for i, au in enumerate(aus):
