@@ -177,7 +177,9 @@ cdef class Graph:
     group start. With ``realtime`` a full queue drops: input resumes at the next group start, and
     a branch that falls behind abandons the rest of the group. Without it, queues block. A packet
     that has waited ``input_max_ms`` to be decoded is dropped with the rest of its group (0: no
-    time bound), from when every encoder has opened.
+    time bound). Through a branch's first group, while its encoder opens and runs its first, slow
+    frames, the decode thread waits for it instead; the time bound counts from when every branch
+    has left its first group.
     """
 
     cdef cym_graph *_g

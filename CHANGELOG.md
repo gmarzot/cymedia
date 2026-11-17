@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- In realtime mode a branch no longer abandons its first group: the decode thread waits for it
+  through that group, and `input_max_ms` counts from when every branch has left it. NVENC's first
+  frames after opening took 150–430 ms and filled the four-frame queue, so most rungs lost their
+  first group at every start.
+
 ## 0.1.3
 
 - `scripts/build-ffmpeg.sh` builds OpenSSL 3.5 and libsrt 1.5 into FFmpeg, so `Source` opens SRT,

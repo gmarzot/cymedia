@@ -58,6 +58,7 @@ typedef struct branch {
     void *in_hwfc;
     meta_list fmeta;
     int skipping;
+    int starts; /* group starts queued, counted to 2 */
 
     queue q;
     pthread_t thread;
@@ -80,7 +81,7 @@ struct cym_graph {
     cymedia_sink sink;
     int fps_num, fps_den, realtime;
     int64_t input_max_ns;
-    int64_t t_open_ns; /* decode thread: when every encoder had opened */
+    int64_t t_warm_ns; /* decode thread: when every branch had left its first group */
 
     AVCodecContext *dec;
     AVBufferRef *hwdev;
@@ -575,8 +576,14 @@ static int build_filter(cym_graph *g, branch *b, const AVFrame *in)
     return 0;
 }
 
-/* A branch that cannot keep up drops the rest of the group and resumes at the next group start.
-   Until its encoder first opens, the decode thread waits instead. */
+/* Through its first group the decode thread waits for a branch: its encoder opens and runs its
+   first, slow frames. */
+static int warming(branch *b)
+{
+    return b->starts < 2 || !__atomic_load_n(&b->opened, __ATOMIC_ACQUIRE);
+}
+
+/* A branch that cannot keep up drops the rest of the group and resumes at the next group start. */
 static void pull_filter(cym_graph *g, branch *b)
 {
     for (;;) {
@@ -598,7 +605,9 @@ static void pull_filter(cym_graph *g, branch *b)
             continue;
         }
         b->skipping = 0;
-        int r = q_push(&b->q, it, !g->realtime || !__atomic_load_n(&b->opened, __ATOMIC_ACQUIRE));
+        int r = q_push(&b->q, it, !g->realtime || warming(b));
+        if (r == 0 && start && b->starts < 2)
+            b->starts++;
         if (r != 0) {
             free_item(it);
             if (r < 0)
@@ -662,7 +671,7 @@ static void decode(cym_graph *g, AVPacket *pkt)
 }
 
 /* Drops a packet that waited over input_max_ns to be decoded, with the rest of its group. The wait
-   counts from when every encoder has opened: until then the decode thread waits for first opens. */
+   counts from when every branch has left its first group. */
 static int stale_input(cym_graph *g, const item *it, int *skipping)
 {
     if (*skipping && !(it->meta.pub.flags & CYMEDIA_GROUP_START))
@@ -670,13 +679,13 @@ static int stale_input(cym_graph *g, const item *it, int *skipping)
     *skipping = 0;
     if (!g->input_max_ns)
         return 0;
-    if (!g->t_open_ns) {
+    if (!g->t_warm_ns) {
         for (int i = 0; i < g->nb; i++)
-            if (!__atomic_load_n(&g->b[i].opened, __ATOMIC_ACQUIRE))
+            if (warming(&g->b[i]))
                 return 0;
-        g->t_open_ns = now_ns();
+        g->t_warm_ns = now_ns();
     }
-    int64_t since = it->meta.t_push_ns > g->t_open_ns ? it->meta.t_push_ns : g->t_open_ns;
+    int64_t since = it->meta.t_push_ns > g->t_warm_ns ? it->meta.t_push_ns : g->t_warm_ns;
     if (now_ns() - since <= g->input_max_ns)
         return 0;
     *skipping = 1;
